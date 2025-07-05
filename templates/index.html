@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>リアルタイム翻訳 (日/英 → 独)</title>
+    <style>
+        /* 基本的なスタイルと背景色 */
+        body {
+            background-color: #e0f7fa; /* 薄い水色 */
+            font-family: 'Meiryo', 'Hiragino Kaku Gothic ProN', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            color: #333;
+        }
+
+        /* 全体を囲むコンテナ */
+        .container {
+            width: 80%;
+            max-width: 700px;
+            text-align: center;
+            background-color: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            color: #00796b;
+            margin-bottom: 30px;
+        }
+
+        /* テキストボックスと国旗を囲むコンテナ */
+        .input-container {
+            position: relative; /* 国旗を相対位置で配置するため */
+            margin-bottom: 20px;
+        }
+
+        /* テキストボックスのスタイル */
+        #input-text {
+            width: 100%;
+            height: 200px;
+            padding: 15px;
+            font-size: 1.5rem; /* 大きめのフォント */
+            border: 2px solid #b2dfdb;
+            border-radius: 10px;
+            resize: vertical;
+            box-sizing: border-box; /* paddingを含めて幅を計算 */
+            color: black; /* 入力文字は黒 */
+            background-color: #faffff;
+        }
+        #input-text:focus {
+            outline: none;
+            border-color: #00796b;
+            box-shadow: 0 0 8px rgba(0, 121, 107, 0.3);
+        }
+
+        /* 国旗画像のスタイル */
+        #lang-flag {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 32px;
+            height: auto;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            transition: opacity 0.3s ease;
+        }
+
+        /* 翻訳結果を表示するエリア */
+        #translation-result {
+            margin-top: 20px;
+            padding: 20px;
+            min-height: 100px; /* 高さを確保 */
+            background-color: #f1f8e9;
+            border: 1px dashed #c5e1a5;
+            border-radius: 10px;
+            font-size: 1.4rem;
+            color: #33691e;
+            text-align: left;
+            white-space: pre-wrap; /* 改行を反映 */
+            word-wrap: break-word; /* 長い単語を折り返す */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>リアルタイム翻訳</h1>
+        <p>日本語または英語の文章を入力してください。ドイツ語に翻訳します。</p>
+
+        <div class="input-container">
+            <textarea id="input-text" placeholder="ここにテキストを入力..."></textarea>
+            <img id="lang-flag" src="{{ url_for('static', filename='images/de.png') }}" alt="Detected Language">
+        </div>
+
+        <h3>翻訳結果 (ドイツ語)</h3>
+        <div id="translation-result"></div>
+    </div>
+
+    <script>
+        // DOM要素の取得
+        const inputText = document.getElementById('input-text');
+        const translationResult = document.getElementById('translation-result');
+        const langFlag = document.getElementById('lang-flag');
+        
+        // 連続入力を効率的に処理するためのタイマー変数
+        let typingTimer;
+        const doneTypingInterval = 300; // 300ms入力がなければAPIを叩く
+
+        // 翻訳処理を行う関数
+        async function performTranslation() {
+            const text = inputText.value;
+
+            try {
+                // サーバーの/translateエンドポイントにPOSTリクエストを送信
+                const response = await fetch('/translate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ text: text })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                // 翻訳結果を画面に表示
+                translationResult.textContent = data.translation;
+                
+                // 検出された言語に応じて国旗画像を切り替え
+                switch (data.source_lang) {
+                    case 'ja':
+                        langFlag.src = "{{ url_for('static', filename='images/jp.png') }}";
+                        break;
+                    case 'en':
+                        langFlag.src = "{{ url_for('static', filename='images/gb.png') }}";
+                        break;
+                    default:
+                        // 入力が空の場合など
+                        langFlag.src = "{{ url_for('static', filename='images/de.png') }}";
+                        break;
+                }
+
+            } catch (error) {
+                console.error('翻訳リクエストに失敗しました:', error);
+                translationResult.textContent = 'エラーが発生しました。';
+            }
+        }
+        
+        // テキストエリアで入力があるたびにイベント発火
+        inputText.addEventListener('input', () => {
+            // 以前のタイマーをクリア
+            clearTimeout(typingTimer);
+            // 新しいタイマーを設定し、入力が止まったら翻訳処理を実行
+            typingTimer = setTimeout(performTranslation, doneTypingInterval);
+        });
+    </script>
+</body>
+</html>
